@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Online Peer-to-Peer Chess</title>
+  <title>Online SVG Peer-to-Peer Chess</title>
 
   <!-- CSS Dependencies -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css" />
@@ -79,7 +79,7 @@
 <body>
 
 <div class="container">
-  <h1>P2P WebRTC Chess</h1>
+  <h1>P2P WebRTC Chess (SVG Graphics)</h1>
 
   <div class="card controls">
     <p id="peer-id-display">Your Player ID: <i>Connecting...</i></p>
@@ -108,16 +108,31 @@
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
 <script>
+  // Inline SVG Vector Definitions encoded as Data URIs for all chess pieces
+  const svgPieces = {
+    wP: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><path d="M22.5 9c-2.21 0-4 1.79-4 4 0 .89.29 1.71.78 2.38C17.33 16.5 16 18.59 16 21c0 2.03.94 3.84 2.41 5.03-3 1.06-7.41 5.55-7.41 13.47h23c0-7.92-4.41-12.41-7.41-13.47 1.47-1.19 2.41-3 2.41-5.03 0-2.41-1.33-4.5-3.28-5.62.49-.67.78-1.49.78-2.38 0-2.21-1.79-4-4-4z" fill="%23fff" stroke="%23000" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    wN: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><path d="M22 10c1.05 0 8.02.02 9.36 8.68 1.08 7-2.86 10.32-2.86 10.32s1.5 5.86 3.5 8.5H13c0 0 1.5-6.5 3-10 1.5-3.5 1-4.5.5-6.5s-2-2.5-3.5-2.5c-1.6 0-3 1.5-3 1.5s-.5-2 1-3.5 3.5-3 5.5-3.5c2-.5 4.5-1 5.5-4z" fill="%23fff" stroke="%23000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    wB: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><g fill="%23fff" stroke="%23000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 36c1.2-1.8 3-2 4.5-2 1.5 0 3 1 4.5 1s3-1 4.5-1 3 1 4.5 1 3-.2 4.5-2M9 39h27v-3H9v3z"/><path d="M22.5 10c-2.5 0-4.5 2.5-4.5 5 0 1.25.5 2 1 3 1.25 2.5 1 6-1 8.5-1.5 2-2.5 3.5-2.5 6.5h14c0-3-1-4.5-2.5-6.5-2-2.5-2.25-6-1-8.5.5-1 1-1.75 1-3 0-2.5-2-5-4.5-5z"/><circle cx="22.5" cy="7.5" r="1.5"/></g></svg>',
+    wR: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><g fill="%23fff" stroke="%23000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 39h27v-3H9v3zM12 36h21l-1.5-4h-18l-1.5 4zM11 14h23l-2 18H13l-2-18zM9 9h4v5H9zM16 9h4v5h-4zM23 9h4v5h-4zM30 9h4v5h-4z"/></g></svg>',
+    wQ: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><g fill="%23fff" stroke="%23000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 39h27v-3H9v3zM12 36h21l-2-4H14l-2 4zM11 26l2 6h19l2-6-4.5-8-6 10-2-12-2 12-6-10L11 26z"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="22.5" cy="9" r="1.5"/><circle cx="30" cy="12" r="1.5"/><circle cx="36" cy="18" r="1.5"/></g></svg>',
+    wK: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><g fill="%23fff" stroke="%23000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22.5 6v6M19.5 9h6M11.5 37c3-3 8-3.5 11-3.5s8 .5 11 3.5M11.5 39h22v-2h-22v2z"/><path d="M11.5 30c0-4.5 6-7.5 11-7.5s11 3 11 7.5c0 2-3 4-11 4s-11-2-11-4z"/></g></svg>',
+    bP: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><path d="M22.5 9c-2.21 0-4 1.79-4 4 0 .89.29 1.71.78 2.38C17.33 16.5 16 18.59 16 21c0 2.03.94 3.84 2.41 5.03-3 1.06-7.41 5.55-7.41 13.47h23c0-7.92-4.41-12.41-7.41-13.47 1.47-1.19 2.41-3 2.41-5.03 0-2.41-1.33-4.5-3.28-5.62.49-.67.78-1.49.78-2.38 0-2.21-1.79-4-4-4z" fill="%23000" stroke="%23fff" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    bN: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><path d="M22 10c1.05 0 8.02.02 9.36 8.68 1.08 7-2.86 10.32-2.86 10.32s1.5 5.86 3.5 8.5H13c0 0 1.5-6.5 3-10 1.5-3.5 1-4.5.5-6.5s-2-2.5-3.5-2.5c-1.6 0-3 1.5-3 1.5s-.5-2 1-3.5 3.5-3 5.5-3.5c2-.5 4.5-1 5.5-4z" fill="%23000" stroke="%23fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    bB: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><g fill="%23000" stroke="%23fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 36c1.2-1.8 3-2 4.5-2 1.5 0 3 1 4.5 1s3-1 4.5-1 3 1 4.5 1 3-.2 4.5-2M9 39h27v-3H9v3z"/><path d="M22.5 10c-2.5 0-4.5 2.5-4.5 5 0 1.25.5 2 1 3 1.25 2.5 1 6-1 8.5-1.5 2-2.5 3.5-2.5 6.5h14c0-3-1-4.5-2.5-6.5-2-2.5-2.25-6-1-8.5.5-1 1-1.75 1-3 0-2.5-2-5-4.5-5z"/><circle cx="22.5" cy="7.5" r="1.5"/></g></svg>',
+    bR: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><g fill="%23000" stroke="%23fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 39h27v-3H9v3zM12 36h21l-1.5-4h-18l-1.5 4zM11 14h23l-2 18H13l-2-18zM9 9h4v5H9zM16 9h4v5h-4zM23 9h4v5h-4zM30 9h4v5h-4z"/></g></svg>',
+    bQ: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><g fill="%23000" stroke="%23fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 39h27v-3H9v3zM12 36h21l-2-4H14l-2 4zM11 26l2 6h19l2-6-4.5-8-6 10-2-12-2 12-6-10L11 26z"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="22.5" cy="9" r="1.5"/><circle cx="30" cy="12" r="1.5"/><circle cx="36" cy="18" r="1.5"/></g></svg>',
+    bK: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45"><g fill="%23000" stroke="%23fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22.5 6v6M19.5 9h6M11.5 37c3-3 8-3.5 11-3.5s8 .5 11 3.5M11.5 39h22v-2h-22v2z"/><path d="M11.5 30c0-4.5 6-7.5 11-7.5s11 3 11 7.5c0 2-3 4-11 4s-11-2-11-4z"/></g></svg>'
+  };
+
   let board = null;
   let game = new Chess();
   let peer = null;
   let conn = null;
-  let playerColor = 'w'; // 'w' or 'b'
+  let playerColor = 'w';
 
   const $status =$('#status');
   const $peerIdDisplay =$('#peer-id-display');
 
-  // Initialize PeerJS Connection
   function initPeer() {
     peer = new Peer();
 
@@ -125,10 +140,9 @@
       $peerIdDisplay.html(`Your Game ID: <b style="color: #4caf50;">${id}</b>`);
     });
 
-    // Handle incoming connections (When someone joins your game)
     peer.on('connection', (connection) => {
       conn = connection;
-      playerColor = 'w'; // Host plays White
+      playerColor = 'w';
       setupConnectionHandlers();
       $status.text("Friend connected! You are playing as White. Your turn.");
       board.orientation('white');
@@ -137,24 +151,21 @@
     });
   }
 
-  // Host: Create Game
   function createGame() {
     if (!peer || !peer.id) return alert("Peer service not ready yet. Please wait a second.");
     alert(`Share your Game ID (${peer.id}) with your friend!`);
   }
 
-  // Client: Join Game
   function joinGame() {
     const hostId = $('#join-id-input').val().trim();
     if (!hostId) return alert("Please enter a valid Game ID.");
 
     conn = peer.connect(hostId);
-    playerColor = 'b'; // Client plays Black
+    playerColor = 'b';
     setupConnectionHandlers();
     $status.text("Connecting to host...");
   }
 
-  // Setup PeerJS Event Handlers
   function setupConnectionHandlers() {
     conn.on('open', () => {
       if (playerColor === 'b') {
@@ -165,7 +176,6 @@
       }
     });
 
-    // Listen for incoming moves from remote player
     conn.on('data', (data) => {
       if (data.type === 'move') {
         game.move(data.move);
@@ -179,18 +189,14 @@
     });
   }
 
-  // Drag and Drop Board Logic
   function onDragStart(source, piece, position, orientation) {
-    // Prevent dragging if game is over
     if (game.game_over()) return false;
 
-    // Prevent moving pieces if it's not your turn
     if ((game.turn() === 'w' && playerColor !== 'w') ||
         (game.turn() === 'b' && playerColor !== 'b')) {
       return false;
     }
 
-    // Only allow dragging own color pieces
     if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
         (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
       return false;
@@ -198,17 +204,14 @@
   }
 
   function onDrop(source, target) {
-    // See if move is legal according to chess.js
     const move = game.move({
       from: source,
       to: target,
-      promotion: 'q' // Automatically promote to queen for simplicity
+      promotion: 'q'
     });
 
-    // Illegal move
     if (move === null) return 'snapback';
 
-    // Send move to peer via WebRTC
     if (conn && conn.open) {
       conn.send({ type: 'move', move: move });
     }
@@ -237,10 +240,13 @@
     $status.text(statusText);
   }
 
-  // Initialize Board Configuration
+  // Board Configuration with SVG Theme Resolver
   const config = {
     draggable: true,
     position: 'start',
+    pieceTheme: function (piece) {
+      return svgPieces[piece];
+    },
     onDragStart: onDragStart,
     onDrop: onDrop,
     onSnapEnd: onSnapEnd
