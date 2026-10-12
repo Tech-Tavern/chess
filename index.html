@@ -4,105 +4,91 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>P2P Online Chess</title>
-
-  <!-- Modern cm-chessboard CSS -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cm-chessboard@8.5.0/assets/chessboard.css"/>
+  
+  <!-- cm-chessboard Core Styles -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cm-chessboard@8/assets/chessboard.css"/>
   
   <style>
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: #1a1a1a;
-      color: #f0f0f0;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       min-height: 100vh;
       margin: 0;
-      padding: 20px;
+      padding: 16px;
     }
-
-    .container {
-      max-width: 480px;
+    .card {
+      background: #1e293b;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
       width: 100%;
+      max-width: 440px;
+      margin-bottom: 16px;
+      box-sizing: border-box;
       text-align: center;
     }
-
-    .card {
-      background-color: #2a2a2a;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
-      margin-bottom: 20px;
-    }
-
     input {
-      padding: 10px;
-      border: 1px solid #444;
-      background: #333;
+      padding: 10px 12px;
+      border: 1px solid #475569;
+      background: #0f172a;
       color: #fff;
-      border-radius: 4px;
+      border-radius: 6px;
       width: 55%;
-      margin-right: 5px;
+      outline: none;
     }
-
     button {
-      padding: 10px 15px;
-      background-color: #4caf50;
+      padding: 10px 16px;
+      background: #22c55e;
       color: white;
       border: none;
-      border-radius: 4px;
+      border-radius: 6px;
       cursor: pointer;
-      font-weight: bold;
+      font-weight: 600;
     }
-
-    button:hover {
-      background-color: #45a049;
-    }
-
+    button:hover { background: #16a34a; }
     #status {
-      font-size: 1.1em;
-      font-weight: bold;
-      margin-bottom: 15px;
-      color: #ffca28;
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 14px;
+      color: #fbbf24;
     }
-
     #board {
       width: 100%;
-      max-width: 400px;
+      max-width: 380px;
       margin: 0 auto;
     }
   </style>
 </head>
 <body>
 
-<div class="container">
-  <h1>P2P WebRTC Chess</h1>
-
-  <div class="card">
-    <p id="peer-id-display">Your Player ID: <i>Connecting...</i></p>
-    <div style="margin-bottom: 12px;">
-      <button onclick="createGame()">Create New Game</button>
-    </div>
-    <div>
-      <input type="text" id="join-id-input" placeholder="Enter Host Game ID" />
-      <button onclick="joinGame()">Join Game</button>
-    </div>
+<div class="card">
+  <h2>P2P WebRTC Chess</h2>
+  <p id="peer-id-display">Your ID: <i>Connecting to network...</i></p>
+  <div style="margin-bottom: 12px;">
+    <button id="create-btn">Create New Game</button>
   </div>
-
-  <div class="card">
-    <div id="status">Status: Waiting for game connection...</div>
-    <div id="board"></div>
+  <div>
+    <input type="text" id="join-id-input" placeholder="Paste Host ID" />
+    <button id="join-btn">Join Game</button>
   </div>
 </div>
 
-<!-- Dependencies: PeerJS & Chess.js -->
+<div class="card">
+  <div id="status">Status: Waiting for game connection...</div>
+  <div id="board"></div>
+</div>
+
+<!-- PeerJS Library -->
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0-beta.6/chess.min.js"></script>
 
 <script type="module">
-  import { Chessboard, COLOR, INPUT_EVENT_TYPE } from "https://cdn.jsdelivr.net/npm/cm-chessboard@8.5.0/src/Chessboard.js";
-  import { PIECES_SVG_MODERN } from "https://cdn.jsdelivr.net/npm/cm-chessboard@8.5.0/src/cm-chessboard/assets/pieces-svg-modern.js";
+  import { Chessboard, COLOR, FEN, INPUT_EVENT_TYPE } from "https://cdn.jsdelivr.net/npm/cm-chessboard@8/src/Chessboard.js";
+  import { Chess } from "https://cdn.jsdelivr.net/npm/chess.js@1.4.0/+esm";
 
   let board = null;
   let game = new Chess();
@@ -113,25 +99,79 @@
   const $status = document.getElementById("status");
   const $peerIdDisplay = document.getElementById("peer-id-display");
 
-  // Initialize Board
-  async function initBoard() {
+  async function init() {
+    // Initialize SVG Chessboard with remote asset path resolver
     board = new Chessboard(document.getElementById("board"), {
-      position: game.fen(),
-      sprite: { url: PIECES_SVG_MODERN },
+      position: FEN.start,
+      assetsUrl: "https://cdn.jsdelivr.net/npm/cm-chessboard@8/assets/",
       orientation: COLOR.white,
       responsive: true
     });
 
     board.enableMoveInput(inputHandler, playerColor);
+
+    // Initialize PeerJS Node
+    peer = new Peer();
+
+    peer.on("open", (id) => {
+      $peerIdDisplay.innerHTML = `Your ID: <b style="color: #4ade80;">${id}</b>`;
+    });
+
+    peer.on("connection", (connection) => {
+      conn = connection;
+      playerColor = COLOR.white;
+      setupConnectionHandlers();
+      $status.innerText = "Friend connected! You are White. Your turn.";
+      board.setOrientation(COLOR.white);
+      game.reset();
+      board.setPosition(game.fen(), true);
+      board.enableMoveInput(inputHandler, playerColor);
+    });
+
+    document.getElementById("create-btn").onclick = () => {
+      if (!peer || !peer.id) return alert("Still connecting to peer server, please wait...");
+      alert(`Send this Game ID to your friend: ${peer.id}`);
+    };
+
+    document.getElementById("join-btn").onclick = () => {
+      const hostId = document.getElementById("join-id-input").value.trim();
+      if (!hostId) return alert("Please enter a valid Host ID.");
+      conn = peer.connect(hostId);
+      playerColor = COLOR.black;
+      setupConnectionHandlers();
+      $status.innerText = "Connecting to host...";
+    };
   }
 
-  // Handle Board Input / Moves
+  function setupConnectionHandlers() {
+    conn.on("open", () => {
+      if (playerColor === COLOR.black) {
+        $status.innerText = "Connected! You are Black. Waiting for White's move.";
+        board.setOrientation(COLOR.black);
+        game.reset();
+        board.setPosition(game.fen(), true);
+        board.enableMoveInput(inputHandler, playerColor);
+      }
+    });
+
+    conn.on("data", (data) => {
+      if (data.type === "move") {
+        game.move(data.move);
+        board.setPosition(game.fen(), true);
+        updateStatus();
+      }
+    });
+
+    conn.on("close", () => {
+      $status.innerText = "Connection closed by opponent.";
+    });
+  }
+
   function inputHandler(event) {
     if (event.type === INPUT_EVENT_TYPE.moveStarted) {
-      // Return true if it's the correct player's turn to move this piece
       const piece = game.get(event.square);
-      if (piece && ((game.turn() === 'w' && piece.color === 'w' && playerColor === COLOR.white) ||
-                    (game.turn() === 'b' && piece.color === 'b' && playerColor === COLOR.black))) {
+      if (piece && ((game.turn() === "w" && piece.color === "w" && playerColor === COLOR.white) ||
+                    (game.turn() === "b" && piece.color === "b" && playerColor === COLOR.black))) {
         return true;
       }
       return false;
@@ -139,13 +179,13 @@
       const move = {
         from: event.squareFrom,
         to: event.squareTo,
-        promotion: 'q'
+        promotion: "q"
       };
       const result = game.move(move);
       if (result) {
         board.setPosition(game.fen(), true);
         if (conn && conn.open) {
-          conn.send({ type: 'move', move: move });
+          conn.send({ type: "move", move: move });
         }
         updateStatus();
         return true;
@@ -154,71 +194,12 @@
     }
   }
 
-  // PeerJS Setup
-  window.initPeer = function() {
-    peer = new Peer();
-
-    peer.on('open', (id) => {
-      $peerIdDisplay.innerHTML = `Your Game ID: <b style="color: #4caf50;">${id}</b>`;
-    });
-
-    peer.on('connection', (connection) => {
-      conn = connection;
-      playerColor = COLOR.white;
-      setupConnectionHandlers();
-      $status.innerText = "Friend connected! You play White. Your turn.";
-      board.setOrientation(COLOR.white);
-      game.reset();
-      board.setPosition(game.fen(), true);
-      board.enableMoveInput(inputHandler, playerColor);
-    });
-  };
-
-  window.createGame = function() {
-    if (!peer || !peer.id) return alert("Peer service loading, please wait...");
-    alert(`Share your Game ID (${peer.id}) with your friend!`);
-  };
-
-  window.joinGame = function() {
-    const hostId = document.getElementById("join-id-input").value.trim();
-    if (!hostId) return alert("Please enter a valid Game ID.");
-
-    conn = peer.connect(hostId);
-    playerColor = COLOR.black;
-    setupConnectionHandlers();
-    $status.innerText = "Connecting to host...";
-  };
-
-  function setupConnectionHandlers() {
-    conn.on('open', () => {
-      if (playerColor === COLOR.black) {
-        $status.innerText = "Connected! You play Black. Waiting for White's move.";
-        board.setOrientation(COLOR.black);
-        game.reset();
-        board.setPosition(game.fen(), true);
-        board.enableMoveInput(inputHandler, playerColor);
-      }
-    });
-
-    conn.on('data', (data) => {
-      if (data.type === 'move') {
-        game.move(data.move);
-        board.setPosition(game.fen(), true);
-        updateStatus();
-      }
-    });
-
-    conn.on('close', () => {
-      $status.innerText = "Connection closed by opponent.";
-    });
-  }
-
   function updateStatus() {
-    let moveColor = game.turn() === 'b' ? 'Black' : 'White';
+    let moveColor = game.turn() === "b" ? "Black" : "White";
     if (game.isCheckmate()) {
       $status.innerText = `Game over, ${moveColor} is in checkmate.`;
     } else if (game.isDraw()) {
-      $status.innerText = 'Game over, drawn position.';
+      $status.innerText = "Game over, drawn position.";
     } else {
       let text = `${moveColor} to move`;
       if (game.isCheck()) text += ` (${moveColor} is in check!)`;
@@ -226,9 +207,7 @@
     }
   }
 
-  // Initialize on load
-  initBoard();
-  initPeer();
+  init();
 </script>
 
 </body>
